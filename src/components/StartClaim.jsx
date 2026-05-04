@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { createClaim } from '../services/claimService';
 
 const StartClaim = () => {
   const { policyId } = useParams();
@@ -10,24 +11,24 @@ const StartClaim = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [claimNumber, setClaimNumber] = useState('');
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const [formData, setFormData] = useState({
     claimType: '',
+    claimAmount: '',
     incidentDate: getTodayDate(),
     description: '',
     isAccidentalDeath: false
   });
 
-  // Get today's date in YYYY-MM-DD format
   function getTodayDate() {
     const today = new Date();
     return today.toISOString().split('T')[0];
   }
 
-  // Get required documents based on claim type (Life Insurance only)
   const getRequiredDocuments = (claimType, isAccidental = false) => {
     if (claimType === 'Death') {
       const mandatory = [
@@ -57,10 +58,10 @@ const StartClaim = () => {
         conditional: []
       };
     }
+
     return { mandatory: [], conditional: [] };
   };
 
-  // Mock data for fallback
   const mockPolicies = [
     {
       id: 1,
@@ -88,50 +89,32 @@ const StartClaim = () => {
     }
   ];
 
-  // Fetch user profile first
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/user/profile');
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUserId(userData.userId);
-        } else {
-          setUserId(1); // Default fallback
-          setError('Unable to fetch user profile. Using default user.');
-        }
+        setUserId(1);
       } catch (err) {
         console.error('Error fetching user profile:', err);
         setUserId(1);
-        setError('Connection failed. Using default data.');
       }
     };
 
     fetchUserProfile();
   }, []);
 
-  // Fetch policies after userId is obtained
   useEffect(() => {
     if (!userId) return;
 
     const fetchPolicies = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/policies?userId=${userId}`);
+        setPolicies(mockPolicies);
 
-        if (response.ok) {
-          const policiesData = await response.json();
-          setPolicies(policiesData);
-          
-          // Auto-select policy if policyId provided
-          if (policyId) {
-            setSelectedPolicyId(policyId);
-          }
-        } else {
-          setPolicies(mockPolicies);
+        if (policyId) {
+          setSelectedPolicyId(policyId);
         }
+
         setError(null);
       } catch (err) {
         console.error('Error fetching policies:', err);
@@ -144,13 +127,11 @@ const StartClaim = () => {
     fetchPolicies();
   }, [userId, policyId]);
 
-  // Update selected policy when selectedPolicyId changes
   useEffect(() => {
     if (selectedPolicyId && policies.length > 0) {
-      const policy = policies.find(p => p.id == selectedPolicyId);
+      const policy = policies.find(p => p.id === Number(selectedPolicyId));
       setSelectedPolicy(policy || null);
 
-      // Auto-select claim type based on policy type
       if (policy && policy.policyType === 'Life Insurance') {
         setFormData(prev => ({
           ...prev,
@@ -167,14 +148,14 @@ const StartClaim = () => {
     }
   }, [selectedPolicyId, policies]);
 
-  // Handle form input changes
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
+
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
-    // Clear validation error for this field
+
     if (validationErrors[name]) {
       setValidationErrors({
         ...validationErrors,
@@ -183,11 +164,10 @@ const StartClaim = () => {
     }
   };
 
-  // Handle file selection
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
     const validFiles = files.filter(file => {
       if (file.size > MAX_FILE_SIZE) {
         setError(`File "${file.name}" exceeds 5MB limit.`);
@@ -199,12 +179,10 @@ const StartClaim = () => {
     setUploadedFiles([...uploadedFiles, ...validFiles]);
   };
 
-  // Remove file from uploaded list
   const removeFile = (index) => {
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
   };
 
-  // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -213,7 +191,6 @@ const StartClaim = () => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  // Validate form
   const validateForm = () => {
     const errors = {};
 
@@ -222,17 +199,23 @@ const StartClaim = () => {
     } else if (selectedPolicy && selectedPolicy.status !== 'Active') {
       errors.policy = `Cannot claim on ${selectedPolicy.status} policy. Please select an Active policy.`;
     }
+
     if (!formData.claimType) {
       errors.claimType = 'Please select a claim type';
     }
+
+    if (!formData.claimAmount || Number(formData.claimAmount) <= 0) {
+      errors.claimAmount = 'Please enter a valid claim amount';
+    }
+
     if (!formData.incidentDate) {
       errors.incidentDate = 'Please enter incident date';
     }
+
     if (!formData.description || formData.description.trim() === '') {
       errors.description = 'Please enter a description';
     }
 
-    // Validate mandatory documents upload
     if (formData.claimType) {
       const { mandatory } = getRequiredDocuments(formData.claimType, formData.isAccidentalDeath);
       if (uploadedFiles.length === 0) {
@@ -244,7 +227,6 @@ const StartClaim = () => {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -256,41 +238,25 @@ const StartClaim = () => {
       setSubmitting(true);
       setError(null);
 
-      // Prepare payload with enhanced data
       const payload = {
-        policyId: selectedPolicyId,
+        customerId: Number(userId),
         claimType: formData.claimType,
-        incidentDate: formData.incidentDate,
-        description: formData.description,
-        isAccidentalDeath: formData.claimType === 'Death' ? formData.isAccidentalDeath : null,
-        userId: userId,
-        createdAt: new Date().toISOString(),
-        status: 'Submitted'
+        claimAmount: Number(formData.claimAmount),
+        description: formData.description
       };
 
-      const response = await fetch('/api/claims/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      const result = await createClaim(payload);
 
-      if (response.ok) {
-        const result = await response.json();
-        setSuccess(true);
-        
-        // Redirect after 2 seconds
-        setTimeout(() => {
-          window.location.href = '/claimservice/claims';
-        }, 2000);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to create claim. Please try again.');
-      }
+      setClaimNumber(result.claimNumber);
+      setSuccess(true);
+
+      setTimeout(() => {
+        window.location.href = '/claimservice/dashboard';
+      }, 2500);
+
     } catch (err) {
       console.error('Error submitting claim:', err);
-      setError('An error occurred. Please try again.');
+      setError('Failed to submit claim. Please check whether Claim Service is running on port 8082.');
     } finally {
       setSubmitting(false);
     }
@@ -309,7 +275,8 @@ const StartClaim = () => {
       <div style={styles.container}>
         <div style={styles.successCard}>
           <h2 style={styles.successTitle}>✓ Claim Submitted Successfully!</h2>
-          <p style={styles.successMessage}>Your claim has been created. You will be redirected shortly.</p>
+          <p style={styles.successMessage}>Claim Number: {claimNumber}</p>
+          <p style={styles.successMessage}>You will be redirected shortly.</p>
         </div>
       </div>
     );
@@ -319,11 +286,10 @@ const StartClaim = () => {
     <div style={styles.container}>
       <div style={styles.formCard}>
         <h1 style={styles.pageTitle}>Start a New Claim</h1>
-        
+
         {error && <div style={styles.errorAlert}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          {/* Policy Selection Section */}
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Select Policy</h2>
 
@@ -351,13 +317,14 @@ const StartClaim = () => {
               </div>
             )}
 
-            {/* Selected Policy Details */}
             {selectedPolicy && (
-              <div style={{
-                ...styles.policyDetailsBox,
-                borderColor: selectedPolicy.status !== 'Active' ? '#fee2e2' : '#d1d5db',
-                backgroundColor: selectedPolicy.status !== 'Active' ? '#fef2f2' : '#f3f4f6'
-              }}>
+              <div
+                style={{
+                  ...styles.policyDetailsBox,
+                  borderColor: selectedPolicy.status !== 'Active' ? '#fee2e2' : '#d1d5db',
+                  backgroundColor: selectedPolicy.status !== 'Active' ? '#fef2f2' : '#f3f4f6'
+                }}
+              >
                 <h3 style={styles.detailsTitle}>Policy Information</h3>
                 <div style={styles.detailsGrid}>
                   <div>
@@ -370,16 +337,18 @@ const StartClaim = () => {
                   </div>
                   <div>
                     <p style={styles.detailLabel}>Status</p>
-                    <p style={{
-                      ...styles.detailValue,
-                      color: selectedPolicy.status === 'Active' ? '#10b981' : '#ef4444',
-                      fontWeight: 'bold'
-                    }}>
+                    <p
+                      style={{
+                        ...styles.detailValue,
+                        color: selectedPolicy.status === 'Active' ? '#10b981' : '#ef4444',
+                        fontWeight: 'bold'
+                      }}
+                    >
                       {selectedPolicy.status}
                     </p>
                   </div>
                 </div>
-                
+
                 {selectedPolicy.status !== 'Active' && (
                   <p style={styles.inactiveWarning}>
                     ⚠️ This policy is {selectedPolicy.status}. Claims cannot be filed on inactive policies.
@@ -389,13 +358,11 @@ const StartClaim = () => {
             )}
           </div>
 
-          {/* Claim Details Section */}
           <div style={styles.section}>
             <h2 style={styles.sectionTitle}>Claim Details</h2>
 
-            {/* Claim Type */}
             <div style={styles.formGroup}>
-              <label style={styles.label}>Claim Type * (Life Insurance Only)</label>
+              <label style={styles.label}>Claim Type * Life Insurance Only</label>
               <select
                 name="claimType"
                 value={formData.claimType}
@@ -413,7 +380,6 @@ const StartClaim = () => {
                 <p style={styles.errorText}>{validationErrors.claimType}</p>
               )}
 
-              {/* Accidental Death Question */}
               {formData.claimType === 'Death' && (
                 <div style={styles.conditionalQuestion}>
                   <label style={styles.checkboxLabel}>
@@ -428,7 +394,6 @@ const StartClaim = () => {
                 </div>
               )}
 
-              {/* Required Documents */}
               {formData.claimType && (
                 <div style={styles.requiredDocsBox}>
                   <p style={styles.requiredDocsTitle}>Mandatory Documents:</p>
@@ -437,10 +402,10 @@ const StartClaim = () => {
                       <li key={idx} style={styles.docLi}>✓ {doc}</li>
                     ))}
                   </ul>
-                  
+
                   {getRequiredDocuments(formData.claimType, formData.isAccidentalDeath).conditional.length > 0 && (
                     <>
-                      <p style={styles.requiredDocsTitle}>Additional Required Documents (Based on your response):</p>
+                      <p style={styles.requiredDocsTitle}>Additional Required Documents:</p>
                       <ul style={styles.ul}>
                         {getRequiredDocuments(formData.claimType, formData.isAccidentalDeath).conditional.map((doc, idx) => (
                           <li key={idx} style={styles.conditionalDocLi}>⚠️ {doc}</li>
@@ -452,7 +417,24 @@ const StartClaim = () => {
               )}
             </div>
 
-            {/* Incident Date - Only for Death Claims */}
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Claim Amount *</label>
+              <input
+                type="number"
+                name="claimAmount"
+                value={formData.claimAmount}
+                onChange={handleFormChange}
+                placeholder="Enter claim amount"
+                style={{
+                  ...styles.input,
+                  borderColor: validationErrors.claimAmount ? '#dc2626' : '#d1d5db'
+                }}
+              />
+              {validationErrors.claimAmount && (
+                <p style={styles.errorText}>{validationErrors.claimAmount}</p>
+              )}
+            </div>
+
             {formData.claimType === 'Death' && (
               <div style={styles.formGroup}>
                 <label style={styles.label}>Date of Death *</label>
@@ -472,7 +454,6 @@ const StartClaim = () => {
               </div>
             )}
 
-            {/* Maturity Date - Only for Maturity Claims */}
             {formData.claimType === 'Maturity' && (
               <div style={styles.formGroup}>
                 <label style={styles.label}>Policy Maturity Date *</label>
@@ -492,23 +473,19 @@ const StartClaim = () => {
               </div>
             )}
 
-            {/* Description */}
             <div style={styles.formGroup}>
               <label style={styles.label}>
-                {formData.claimType === 'Death' ? 'Details about the death *' : 
-                 formData.claimType === 'Maturity' ? 'Additional information *' : 'Description *'}
+                {formData.claimType === 'Death'
+                  ? 'Details about the death *'
+                  : formData.claimType === 'Maturity'
+                  ? 'Additional information *'
+                  : 'Description *'}
               </label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleFormChange}
-                placeholder={
-                  formData.claimType === 'Death' 
-                    ? 'Provide details about the death (date, place, circumstances)...' 
-                    : formData.claimType === 'Maturity'
-                    ? 'Provide maturity claim details...'
-                    : 'Provide details...'
-                }
+                placeholder="Provide claim details..."
                 rows="5"
                 style={{
                   ...styles.textarea,
@@ -521,9 +498,8 @@ const StartClaim = () => {
             </div>
           </div>
 
-          {/* Document Upload Section */}
           <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>Upload Documents (Mandatory)</h2>
+            <h2 style={styles.sectionTitle}>Upload Documents Mandatory</h2>
 
             <div style={styles.formGroup}>
               <label style={styles.label}>Supporting Documents *</label>
@@ -538,11 +514,11 @@ const StartClaim = () => {
                 accept="image/*,.pdf,.doc,.docx"
               />
               <p style={styles.helperText}>Supported formats: PDF, DOC, DOCX, Images | Max size: 5MB per file</p>
-              
+
               {validationErrors.documents && (
                 <p style={styles.errorAlert}>{validationErrors.documents}</p>
               )}
-              
+
               {uploadedFiles.length > 0 && (
                 <div style={styles.fileList}>
                   <p style={styles.fileListTitle}>Uploaded Files ({uploadedFiles.length}):</p>
@@ -554,7 +530,6 @@ const StartClaim = () => {
                           type="button"
                           onClick={() => removeFile(idx)}
                           style={styles.removeFileBtn}
-                          title="Remove file"
                         >
                           ✕
                         </button>
@@ -566,34 +541,19 @@ const StartClaim = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
           <div style={styles.buttonGroup}>
             <button
               type="submit"
-              disabled={
-                submitting || 
-                !selectedPolicy || 
-                selectedPolicy.status !== 'Active' ||
-                Object.keys(validationErrors).length > 0
-              }
+              disabled={submitting || !selectedPolicy || selectedPolicy.status !== 'Active'}
               style={{
                 ...styles.submitButton,
-                opacity: (
-                  submitting || 
-                  !selectedPolicy || 
-                  selectedPolicy.status !== 'Active' ||
-                  Object.keys(validationErrors).length > 0
-                ) ? 0.5 : 1,
-                cursor: (
-                  submitting || 
-                  !selectedPolicy || 
-                  selectedPolicy.status !== 'Active' ||
-                  Object.keys(validationErrors).length > 0
-                ) ? 'not-allowed' : 'pointer'
+                opacity: submitting || !selectedPolicy || selectedPolicy.status !== 'Active' ? 0.5 : 1,
+                cursor: submitting || !selectedPolicy || selectedPolicy.status !== 'Active' ? 'not-allowed' : 'pointer'
               }}
             >
               {submitting ? 'Submitting...' : 'Submit Claim'}
             </button>
+
             <button
               type="button"
               onClick={() => window.location.href = '/claimservice/dashboard'}
@@ -608,7 +568,6 @@ const StartClaim = () => {
   );
 };
 
-// Inline styles
 const styles = {
   container: {
     maxWidth: '800px',
@@ -630,12 +589,14 @@ const styles = {
     color: '#1f2937'
   },
   errorAlert: {
+    color: '#dc2626',
     backgroundColor: '#fee2e2',
-    borderLeft: '4px solid #dc2626',
-    color: '#991b1b',
-    padding: '12px 16px',
+    padding: '8px 12px',
     borderRadius: '4px',
-    marginBottom: '20px'
+    fontSize: '13px',
+    marginTop: '8px',
+    marginBottom: '20px',
+    border: '1px solid #fecaca'
   },
   successCard: {
     backgroundColor: '#ecfdf5',
@@ -652,7 +613,7 @@ const styles = {
   successMessage: {
     color: '#059669',
     fontSize: '16px',
-    margin: 0
+    margin: '5px 0'
   },
   section: {
     marginBottom: '30px',
@@ -757,29 +718,17 @@ const styles = {
     color: '#166534',
     marginBottom: '5px'
   },
-  autoFillHint: {
-    fontSize: '12px',
-    color: '#10b981',
-    fontStyle: 'italic',
-    fontWeight: 'normal'
-  },
   inactiveWarning: {
     marginTop: '12px',
     padding: '10px',
     backgroundColor: '#fee2e2',
     color: '#991b1b',
     borderRadius: '4px',
-    fontSize: '14px',
-    margin: '12px 0 0 0'
+    fontSize: '14px'
   },
   ul: {
     margin: '0',
     paddingLeft: '20px'
-  },
-  li: {
-    fontSize: '14px',
-    color: '#4b5563',
-    marginBottom: '5px'
   },
   errorText: {
     color: '#dc2626',
@@ -828,8 +777,7 @@ const styles = {
     borderRadius: '6px',
     fontSize: '16px',
     fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
+    cursor: 'pointer'
   },
   cancelButton: {
     padding: '12px 32px',
@@ -839,8 +787,7 @@ const styles = {
     borderRadius: '6px',
     fontSize: '16px',
     fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
+    cursor: 'pointer'
   },
   loadingText: {
     textAlign: 'center',
@@ -868,15 +815,6 @@ const styles = {
     color: '#b45309',
     marginBottom: '5px',
     fontWeight: 'bold'
-  },
-  errorAlert: {
-    color: '#dc2626',
-    backgroundColor: '#fee2e2',
-    padding: '8px 12px',
-    borderRadius: '4px',
-    fontSize: '13px',
-    marginTop: '8px',
-    border: '1px solid #fecaca'
   }
 };
 
