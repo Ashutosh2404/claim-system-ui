@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { createClaim } from '../services/claimService';
+import { createClaim, getPoliciesByCustomerId } from '../services/claimService';
 
 const StartClaim = () => {
   const { policyId } = useParams();
@@ -67,25 +67,25 @@ const StartClaim = () => {
       id: 1,
       policyNumber: 'POL-2024-001',
       policyType: 'Life Insurance',
-      status: 'Active',
-      premium: 5000,
-      nextDueDate: '2024-05-15'
+      status: 'ACTIVE',
+      premiumAmount: 5000,
+      nextDue: '2024-05-15'
     },
     {
       id: 2,
       policyNumber: 'POL-2024-002',
       policyType: 'Health Insurance',
-      status: 'Active',
-      premium: 3000,
-      nextDueDate: '2024-05-20'
+      status: 'ACTIVE',
+      premiumAmount: 3000,
+      nextDue: '2024-05-20'
     },
     {
       id: 3,
       policyNumber: 'POL-2023-005',
       policyType: 'Accident Insurance',
-      status: 'Lapsed',
-      premium: 1500,
-      nextDueDate: '2024-02-10'
+      status: 'LAPSED',
+      premiumAmount: 1500,
+      nextDue: '2024-02-10'
     }
   ];
 
@@ -93,7 +93,12 @@ const StartClaim = () => {
     const fetchUserProfile = async () => {
       try {
         setLoading(true);
-        setUserId(1);
+        const storedUserId = localStorage.getItem('userId');
+        if (storedUserId) {
+          setUserId(Number(storedUserId));
+        } else {
+          setUserId(1);
+        }
       } catch (err) {
         console.error('Error fetching user profile:', err);
         setUserId(1);
@@ -109,7 +114,8 @@ const StartClaim = () => {
     const fetchPolicies = async () => {
       try {
         setLoading(true);
-        setPolicies(mockPolicies);
+        const policiesData = await getPoliciesByCustomerId(userId);
+        setPolicies(policiesData);
 
         if (policyId) {
           setSelectedPolicyId(policyId);
@@ -119,6 +125,7 @@ const StartClaim = () => {
       } catch (err) {
         console.error('Error fetching policies:', err);
         setPolicies(mockPolicies);
+        setError('Unable to fetch policies. Using sample data for demonstration.');
       } finally {
         setLoading(false);
       }
@@ -196,7 +203,7 @@ const StartClaim = () => {
 
     if (!selectedPolicyId) {
       errors.policy = 'Please select a policy';
-    } else if (selectedPolicy && selectedPolicy.status !== 'Active') {
+    } else if (selectedPolicy && selectedPolicy.status !== 'ACTIVE') {
       errors.policy = `Cannot claim on ${selectedPolicy.status} policy. Please select an Active policy.`;
     }
 
@@ -256,7 +263,7 @@ const StartClaim = () => {
 
     } catch (err) {
       console.error('Error submitting claim:', err);
-      setError('Failed to submit claim. Please check whether Claim Service is running on port 8082.');
+      setError('Failed to submit claim. Please check whether Claim Service is running on port 8081.');
     } finally {
       setSubmitting(false);
     }
@@ -321,8 +328,8 @@ const StartClaim = () => {
               <div
                 style={{
                   ...styles.policyDetailsBox,
-                  borderColor: selectedPolicy.status !== 'Active' ? '#fee2e2' : '#d1d5db',
-                  backgroundColor: selectedPolicy.status !== 'Active' ? '#fef2f2' : '#f3f4f6'
+                  borderColor: selectedPolicy.status !== 'ACTIVE' ? '#fee2e2' : '#d1d5db',
+                  backgroundColor: selectedPolicy.status !== 'ACTIVE' ? '#fef2f2' : '#f3f4f6'
                 }}
               >
                 <h3 style={styles.detailsTitle}>Policy Information</h3>
@@ -340,7 +347,7 @@ const StartClaim = () => {
                     <p
                       style={{
                         ...styles.detailValue,
-                        color: selectedPolicy.status === 'Active' ? '#10b981' : '#ef4444',
+                        color: selectedPolicy.status === 'ACTIVE' ? '#10b981' : '#ef4444',
                         fontWeight: 'bold'
                       }}
                     >
@@ -349,7 +356,7 @@ const StartClaim = () => {
                   </div>
                 </div>
 
-                {selectedPolicy.status !== 'Active' && (
+                {selectedPolicy.status !== 'ACTIVE' && (
                   <p style={styles.inactiveWarning}>
                     ⚠️ This policy is {selectedPolicy.status}. Claims cannot be filed on inactive policies.
                   </p>
@@ -544,11 +551,11 @@ const StartClaim = () => {
           <div style={styles.buttonGroup}>
             <button
               type="submit"
-              disabled={submitting || !selectedPolicy || selectedPolicy.status !== 'Active'}
+              disabled={submitting || !selectedPolicy || selectedPolicy.status !== 'ACTIVE'}
               style={{
                 ...styles.submitButton,
-                opacity: submitting || !selectedPolicy || selectedPolicy.status !== 'Active' ? 0.5 : 1,
-                cursor: submitting || !selectedPolicy || selectedPolicy.status !== 'Active' ? 'not-allowed' : 'pointer'
+                opacity: submitting || !selectedPolicy || selectedPolicy.status !== 'ACTIVE' ? 0.5 : 1,
+                cursor: submitting || !selectedPolicy || selectedPolicy.status !== 'ACTIVE' ? 'not-allowed' : 'pointer'
               }}
             >
               {submitting ? 'Submitting...' : 'Submit Claim'}

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { getUserProfile } from "../services/authService";
+import { getAllClaims, getPoliciesByCustomerId } from "../services/claimService";
 
 const Dashboard = () => {
   const [userId, setUserId] = useState(null);
@@ -12,64 +14,6 @@ const Dashboard = () => {
   const [policyError, setPolicyError] = useState(null);
   const [claimError, setClaimError] = useState(null);
 
-  // Mock data for fallback only
-  const mockPolicies = [
-    {
-      id: 1,
-      policyNumber: "POL-2024-001",
-      policyType: "Life Insurance",
-      status: "Active",
-      premium: 5000,
-      nextDueDate: "2024-05-15",
-    },
-    {
-      id: 2,
-      policyNumber: "POL-2024-002",
-      policyType: "Health Insurance",
-      status: "Active",
-      premium: 3000,
-      nextDueDate: "2024-05-20",
-    },
-    {
-      id: 3,
-      policyNumber: "POL-2023-005",
-      policyType: "Accident Insurance",
-      status: "Lapsed",
-      premium: 1500,
-      nextDueDate: "2024-02-10",
-    },
-  ];
-
-  const mockClaims = [
-    {
-      id: "CLM-2024-101",
-      policyId: 1,
-      amount: 50000,
-      status: "Approved",
-      date: "2024-04-01",
-    },
-    {
-      id: "CLM-2024-102",
-      policyId: 2,
-      amount: 25000,
-      status: "In Review",
-      date: "2024-04-05",
-    },
-    {
-      id: "CLM-2024-103",
-      policyId: 1,
-      amount: 75000,
-      status: "Paid",
-      date: "2024-03-20",
-    },
-    {
-      id: "CLM-2024-104",
-      policyId: 2,
-      amount: 15000,
-      status: "In Review",
-      date: "2024-04-08",
-    },
-  ];
 
   // Utility functions
   const formatCurrency = (amount) => {
@@ -94,23 +38,26 @@ const Dashboard = () => {
     const fetchUserProfile = async () => {
       try {
         setLoadingUser(true);
-        const response = await fetch("/api/user/profile");
-
-        if (response.ok) {
-          const userData = await response.json();
-          setUserName(userData.name || "User");
-          setUserId(userData.userId);
-          setError(null);
-        } else {
+        const storedUserId = localStorage.getItem('userId');
+        const token = localStorage.getItem('token');
+        
+        if (!storedUserId || !token) {
           setUserName("User");
-          setUserId(1); // Default fallback userId
-          setError("Unable to fetch profile. Using default user.");
+          setUserId(1);
+          setError("User not authenticated");
+          return;
         }
+
+        const userData = await getUserProfile(storedUserId);
+        const fullName = `${userData.firstName} ${userData.lastName}`;
+        setUserName(fullName);
+        setUserId(storedUserId);
+        setError(null);
       } catch (err) {
         console.error("Error fetching user profile:", err);
         setUserName("User");
-        setUserId(1); // Default fallback userId
-        setError("Unable to fetch profile. Using default user.");
+        setUserId(localStorage.getItem('userId') || 1);
+        setError("Unable to fetch profile data");
       } finally {
         setLoadingUser(false);
       }
@@ -126,20 +73,13 @@ const Dashboard = () => {
     const fetchPolicies = async () => {
       try {
         setLoadingPolicies(true);
-        const response = await fetch(`/api/policies?userId=${userId}`);
-
-        if (response.ok) {
-          const policiesData = await response.json();
-          setPolicies(policiesData);
-          setPolicyError(null);
-        } else {
-          setPolicies(mockPolicies);
-          setPolicyError("Using sample data. Unable to fetch policies.");
-        }
+        const policiesData = await getPoliciesByCustomerId(userId);
+        setPolicies(policiesData);
+        setPolicyError(null);
       } catch (err) {
         console.error("Error fetching policies:", err);
-        setPolicies(mockPolicies);
-        setPolicyError("Using sample data. Unable to fetch policies.");
+        setPolicies([]);
+        setPolicyError("Unable to fetch policies from server");
       } finally {
         setLoadingPolicies(false);
       }
@@ -155,20 +95,14 @@ const Dashboard = () => {
     const fetchClaims = async () => {
       try {
         setLoadingClaims(true);
-        const response = await fetch(`/api/claims?userId=${userId}`);
-
-        if (response.ok) {
-          const claimsData = await response.json();
-          setClaims(sortClaimsByDate(claimsData));
-          setClaimError(null);
-        } else {
-          setClaims(sortClaimsByDate(mockClaims));
-          setClaimError("Using sample data. Unable to fetch claims.");
-        }
+        const claimsData = await getAllClaims();
+        // Filter claims for current user if needed, or adjust based on backend response
+        setClaims(sortClaimsByDate(claimsData));
+        setClaimError(null);
       } catch (err) {
         console.error("Error fetching claims:", err);
-        setClaims(sortClaimsByDate(mockClaims));
-        setClaimError("Using sample data. Unable to fetch claims.");
+        setClaims([]);
+        setClaimError("Unable to fetch claims from server");
       } finally {
         setLoadingClaims(false);
       }
@@ -179,9 +113,9 @@ const Dashboard = () => {
 
   // Calculate claims overview
   const claimsOverview = {
-    inReview: claims.filter((c) => c.status === "In Review").length,
-    approved: claims.filter((c) => c.status === "Approved").length,
-    paid: claims.filter((c) => c.status === "Paid").length,
+    inReview: claims.filter((c) => c.status === "UNDER_REVIEW" || c.status === "PENDING_MANUAL_REVIEW").length,
+    approved: claims.filter((c) => c.status === "APPROVED").length,
+    paid: claims.filter((c) => c.status === "PAID").length,
   };
 
   // Get recent claims (last 3) - already sorted by date
@@ -375,7 +309,7 @@ const Dashboard = () => {
                     </div>
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                        policy.status === "Active"
+                        policy.status === "ACTIVE"
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"
                       }`}
@@ -391,11 +325,11 @@ const Dashboard = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <p className="text-gray-600 text-sm">Premium</p>
-                      <p className="text-gray-900 font-semibold text-lg">{formatCurrency(policy.premium)}</p>
+                      <p className="text-gray-900 font-semibold text-lg">{formatCurrency(policy.premiumAmount)}</p>
                     </div>
                     <div className="flex justify-between items-center">
                       <p className="text-gray-600 text-sm">Next Due</p>
-                      <p className="text-gray-900 font-semibold">{formatDate(policy.nextDueDate)}</p>
+                      <p className="text-gray-900 font-semibold">{formatDate(policy.nextDue)}</p>
                     </div>
                   </div>
 
@@ -456,10 +390,12 @@ const Dashboard = () => {
                       <td className="px-6 py-4 text-sm">
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                            claim.status === "Paid"
+                            claim.status === "PAID"
                               ? "bg-green-100 text-green-800"
-                              : claim.status === "Approved"
+                              : claim.status === "APPROVED"
                               ? "bg-blue-100 text-blue-800"
+                              : claim.status === "REJECTED"
+                              ? "bg-red-100 text-red-800"
                               : "bg-yellow-100 text-yellow-800"
                           }`}
                         >
