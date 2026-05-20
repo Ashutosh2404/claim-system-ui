@@ -18,12 +18,12 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await login({ email, password });
+      await login({ email, password });
+      // Officer/Admin dashboard visibility is controlled inside Dashboard.jsx based on stored roles.
       setSuccess('Login successful! Redirecting...');
       
-      // Store user info (already done by authService)
       setTimeout(() => {
-        navigate('/claimservice/dashboard');
+        navigate('/dashboard');
       }, 1000);
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || 'Login failed. Please try again.';

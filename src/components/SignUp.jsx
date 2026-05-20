@@ -88,7 +88,7 @@ const SignUp = () => {
         setSuccess('Account created successfully! Redirecting to login...');
         
         setTimeout(() => {
-          navigate('/claimservice/login');
+          navigate('/login');
         }, 1500);
       } catch (err) {
         const errorMessage = err.response?.data?.message || err.message || 'Sign up failed. Please try again.';

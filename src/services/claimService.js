@@ -1,18 +1,33 @@
 import axios from "axios";
+import { getStoredUserInfo } from "./authService";
 
 const API_BASE_URL = "http://localhost:8081/api";
 const CLAIMS_BASE_URL = `${API_BASE_URL}/claims`;
 const POLICIES_BASE_URL = `${API_BASE_URL}/policies`;
+
+const OFFICER_CLAIMS_BASE_URL = `${API_BASE_URL}/officer/claims`;
 
 // ==================== CLAIM ENDPOINTS ====================
 
 // Create claim
 export const createClaim = async (data) => {
   try {
+    // data may include policyNumber and documentNames for demonstration of backend AI/OCR integration
     const response = await axios.post(CLAIMS_BASE_URL, data);
     return response.data;
   } catch (error) {
     console.error("Error creating claim:", error);
+    throw error;
+  }
+};
+
+// Get policy by number
+export const getPolicyByNumber = async (policyNumber) => {
+  try {
+    const response = await axios.get(`${POLICIES_BASE_URL}/by-number/${policyNumber}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching policy by number:", error);
     throw error;
   }
 };
@@ -114,6 +129,57 @@ export const deletePolicy = async (id) => {
     return response.data;
   } catch (error) {
     console.error("Error deleting policy:", error);
+    throw error;
+  }
+};
+
+// ==================== OFFICER ENDPOINTS ====================
+
+// Get pending claims for officer review
+export const getPendingClaimsForOfficer = async () => {
+  try {
+    const token = getStoredUserInfo().token;
+    const response = await axios.get(`${OFFICER_CLAIMS_BASE_URL}/pending`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching pending claims for officer:", error);
+    throw error;
+  }
+};
+
+// Get full claim detail for officer (includes aiSummary, slaRiskScore, etc.)
+export const getClaimDetailForOfficer = async (claimId) => {
+  try {
+    const token = getStoredUserInfo().token;
+    const response = await axios.get(`${OFFICER_CLAIMS_BASE_URL}/${claimId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching officer claim detail:", error);
+    throw error;
+  }
+};
+
+// Submit officer decision (APPROVE | REJECT) with reason
+export const submitOfficerDecision = async (claimId, decision, reason) => {
+  try {
+    const token = getStoredUserInfo().token;
+    const payload = { decision, reason };
+    const response = await axios.post(`${OFFICER_CLAIMS_BASE_URL}/${claimId}/decision`, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error submitting officer decision:", error);
     throw error;
   }
 };
