@@ -565,7 +565,7 @@ const Dashboard = () => {
                         </div>
                         <div className="flex justify-between items-center">
                           <p className="text-gray-600 text-sm">Next Due</p>
-                          <p className="text-gray-900 font-semibold">{formatDate(policy.nextDue)}</p>
+                          <p className="text-gray-900 font-semibold">{formatDate(policy.nextPremiumDueDate || policy.nextDue)}</p>
                         </div>
                       </div>
 
@@ -622,7 +622,7 @@ const Dashboard = () => {
                       {recentClaims.map((claim) => (
                         <tr key={claim.id} className="hover:bg-gray-50 transition-colors duration-200">
                           <td className="px-6 py-4 text-sm font-semibold text-indigo-600">{claim.id}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(claim.amount)}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(claim.claimAmount ?? claim.amount ?? 0)}</td>
                           <td className="px-6 py-4 text-sm">
                             <span
                               className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
@@ -638,7 +638,7 @@ const Dashboard = () => {
                               {claim.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{formatDate(claim.date)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{formatDate(claim.updatedAt || claim.date)}</td>
                           <td className="px-6 py-4 text-center">
                             <button className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm">
                               View →
