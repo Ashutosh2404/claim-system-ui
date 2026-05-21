@@ -57,7 +57,9 @@ export const getAllClaims = async () => {
 // Get claim by ID
 export const getClaimById = async (id) => {
   try {
-    const response = await axios.get(`${CLAIMS_BASE_URL}/${id}`);
+    const response = await axios.get(`${CLAIMS_BASE_URL}/${id}`, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching claim:", error);
@@ -68,7 +70,9 @@ export const getClaimById = async (id) => {
 // Update claim status
 export const updateClaimStatus = async (id, data) => {
   try {
-    const response = await axios.put(`${CLAIMS_BASE_URL}/${id}/status`, data);
+    const response = await axios.put(`${CLAIMS_BASE_URL}/${id}/status`, data, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error updating claim:", error);
@@ -155,11 +159,8 @@ export const deletePolicy = async (id) => {
 // Get pending claims for officer review
 export const getPendingClaimsForOfficer = async () => {
   try {
-    const token = getStoredUserInfo().token;
     const response = await axios.get(`${OFFICER_CLAIMS_BASE_URL}/pending`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders(),
     });
     return response.data;
   } catch (error) {
@@ -171,11 +172,8 @@ export const getPendingClaimsForOfficer = async () => {
 // Get full claim detail for officer (includes aiSummary, slaRiskScore, etc.)
 export const getClaimDetailForOfficer = async (claimId) => {
   try {
-    const token = getStoredUserInfo().token;
     const response = await axios.get(`${OFFICER_CLAIMS_BASE_URL}/${claimId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders(),
     });
     return response.data;
   } catch (error) {
@@ -187,12 +185,9 @@ export const getClaimDetailForOfficer = async (claimId) => {
 // Submit officer decision (APPROVE | REJECT) with reason
 export const submitOfficerDecision = async (claimId, decision, reason) => {
   try {
-    const token = getStoredUserInfo().token;
     const payload = { decision, reason };
     const response = await axios.post(`${OFFICER_CLAIMS_BASE_URL}/${claimId}/decision`, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeaders(),
     });
     return response.data;
   } catch (error) {
