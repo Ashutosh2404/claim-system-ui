@@ -1,6 +1,11 @@
 import axios from "axios";
 import { getStoredUserInfo } from "./authService";
 
+const getAuthHeaders = () => {
+  const { token } = getStoredUserInfo() || {};
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const API_BASE_URL = "http://localhost:8081/api";
 const CLAIMS_BASE_URL = `${API_BASE_URL}/claims`;
 const POLICIES_BASE_URL = `${API_BASE_URL}/policies`;
@@ -13,7 +18,9 @@ const OFFICER_CLAIMS_BASE_URL = `${API_BASE_URL}/officer/claims`;
 export const createClaim = async (data) => {
   try {
     // data may include policyNumber and documentNames for demonstration of backend AI/OCR integration
-    const response = await axios.post(CLAIMS_BASE_URL, data);
+    const response = await axios.post(CLAIMS_BASE_URL, data, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error creating claim:", error);
@@ -24,7 +31,9 @@ export const createClaim = async (data) => {
 // Get policy by number
 export const getPolicyByNumber = async (policyNumber) => {
   try {
-    const response = await axios.get(`${POLICIES_BASE_URL}/by-number/${policyNumber}`);
+    const response = await axios.get(`${POLICIES_BASE_URL}/by-number/${policyNumber}`, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching policy by number:", error);
@@ -35,7 +44,9 @@ export const getPolicyByNumber = async (policyNumber) => {
 // Get all claims
 export const getAllClaims = async () => {
   try {
-    const response = await axios.get(CLAIMS_BASE_URL);
+    const response = await axios.get(CLAIMS_BASE_URL, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching claims:", error);
@@ -70,7 +81,9 @@ export const updateClaimStatus = async (id, data) => {
 // Get all policies
 export const getAllPolicies = async () => {
   try {
-    const response = await axios.get(POLICIES_BASE_URL);
+    const response = await axios.get(POLICIES_BASE_URL, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching policies:", error);
@@ -81,7 +94,9 @@ export const getAllPolicies = async () => {
 // Get policies by customer ID
 export const getPoliciesByCustomerId = async (customerId) => {
   try {
-    const response = await axios.get(`${POLICIES_BASE_URL}/customer/${customerId}`);
+    const response = await axios.get(`${POLICIES_BASE_URL}/customer/${customerId}`, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching policies for customer:", error);
@@ -92,7 +107,9 @@ export const getPoliciesByCustomerId = async (customerId) => {
 // Get policy by ID
 export const getPolicyById = async (id) => {
   try {
-    const response = await axios.get(`${POLICIES_BASE_URL}/${id}`);
+    const response = await axios.get(`${POLICIES_BASE_URL}/${id}`, {
+      headers: getAuthHeaders(),
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching policy:", error);
